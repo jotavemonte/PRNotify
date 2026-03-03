@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.prnotify</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/PRNotify.app/Contents/MacOS/PRNotify</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart on crash, but not on clean quit -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Include Homebrew paths for gh CLI on both Intel and Apple Silicon -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Interactive required for notifications and UI -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <!-- Prevent rapid restart loops -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/com.prnotify.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.prnotify.err.log</string>
+</dict>
+</plist>

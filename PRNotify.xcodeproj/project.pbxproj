@@ -1,0 +1,215 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7E906791D35942778714256D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090EA54466E049FE8E2A8B71 /* AppDelegate.swift */; };
+		8E952621B9FD41C795A7CA8C /* PullRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB204C0EF1E43248D0912C2 /* PullRequest.swift */; };
+		F8DD13D68A1146D29E554DA5 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54DB826424794E428785743E /* Settings.swift */; };
+		B605E25E08544C2C80D3F518 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF1A4DDE9645C29900BFFF /* GitHubService.swift */; };
+		59B2B72AE4DF4218AF1554E7 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C1D4B9F07B4D958D254463 /* NotificationService.swift */; };
+		D81B3B3DF2F845AD94BADC28 /* MenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19851C16E6F04FEB8ACC8349 /* MenuBuilder.swift */; };
+		3DC8012162B94D1B9CD7660F /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 935A21BFE0D546D6A1E512ED /* SettingsWindowController.swift */; };
+		CA2C81AFEA6B4D7087DF4834 /* RecentPRsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6469C692E9714C0694CDBC05 /* RecentPRsStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		090EA54466E049FE8E2A8B71 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "AppDelegate.swift"; sourceTree = "<group>"; };
+		DEB204C0EF1E43248D0912C2 /* PullRequest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "PullRequest.swift"; sourceTree = "<group>"; };
+		54DB826424794E428785743E /* Settings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Settings.swift"; sourceTree = "<group>"; };
+		5EFF1A4DDE9645C29900BFFF /* GitHubService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "GitHubService.swift"; sourceTree = "<group>"; };
+		D6C1D4B9F07B4D958D254463 /* NotificationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "NotificationService.swift"; sourceTree = "<group>"; };
+		19851C16E6F04FEB8ACC8349 /* MenuBuilder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "MenuBuilder.swift"; sourceTree = "<group>"; };
+		935A21BFE0D546D6A1E512ED /* SettingsWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SettingsWindowController.swift"; sourceTree = "<group>"; };
+		6469C692E9714C0694CDBC05 /* RecentPRsStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "RecentPRsStore.swift"; sourceTree = "<group>"; };
+		4857E7C9ABB34155AAE5AD90 /* PRNotify-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "PRNotify-Info.plist"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		E0A78ECCFE5D4C2785763921 /* PRNotify */ = {
+			isa = PBXGroup;
+			children = (
+				090EA54466E049FE8E2A8B71 /* AppDelegate.swift */,
+				DEB204C0EF1E43248D0912C2 /* PullRequest.swift */,
+				54DB826424794E428785743E /* Settings.swift */,
+				5EFF1A4DDE9645C29900BFFF /* GitHubService.swift */,
+				D6C1D4B9F07B4D958D254463 /* NotificationService.swift */,
+				19851C16E6F04FEB8ACC8349 /* MenuBuilder.swift */,
+				935A21BFE0D546D6A1E512ED /* SettingsWindowController.swift */,
+				6469C692E9714C0694CDBC05 /* RecentPRsStore.swift */,
+				4857E7C9ABB34155AAE5AD90 /* PRNotify-Info.plist */,
+			);
+			name = PRNotify;
+			path = PRNotify;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D91C332028384081B972517A /* PRNotify */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 06E50CA3A1F046609963DEE4 /* Build configuration list for PBXNativeTarget "PRNotify" */;
+			buildPhases = (
+				115FD5DF6A39450784B317D5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PRNotify;
+			productName = PRNotify;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		241532FAA4EF4C95A0037D7A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					D91C332028384081B972517A = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = B1D1AC4E5A4442D995C82D84 /* Build configuration list for PBXProject "PRNotify" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			mainGroup = E0A78ECCFE5D4C2785763921;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D91C332028384081B972517A /* PRNotify */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		115FD5DF6A39450784B317D5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E906791D35942778714256D /* AppDelegate.swift in Sources */,
+				8E952621B9FD41C795A7CA8C /* PullRequest.swift in Sources */,
+				F8DD13D68A1146D29E554DA5 /* Settings.swift in Sources */,
+				B605E25E08544C2C80D3F518 /* GitHubService.swift in Sources */,
+				59B2B72AE4DF4218AF1554E7 /* NotificationService.swift in Sources */,
+				D81B3B3DF2F845AD94BADC28 /* MenuBuilder.swift in Sources */,
+				3DC8012162B94D1B9CD7660F /* SettingsWindowController.swift in Sources */,
+				CA2C81AFEA6B4D7087DF4834 /* RecentPRsStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		587F799AB29E45F5B2EBC9DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		399C6E064A4A47A98C06808B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = s;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		3B318C0250B44975BAC9964C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSET_CATALOG_COMPILER_OPTIMIZATION = space;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEPLOYMENT_POSTPROCESSING = NO;
+				ENABLE_APP_SANDBOX = NO;
+				INFOPLIST_FILE = PRNotify/PRNotify-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prnotify;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGNING_ALLOWED = NO;
+			};
+			name = Debug;
+		};
+		BA9B025C354345F5A684858B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSET_CATALOG_COMPILER_OPTIMIZATION = space;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEPLOYMENT_POSTPROCESSING = NO;
+				ENABLE_APP_SANDBOX = NO;
+				INFOPLIST_FILE = PRNotify/PRNotify-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prnotify;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGNING_ALLOWED = NO;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B1D1AC4E5A4442D995C82D84 /* Build configuration list for PBXProject "PRNotify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				587F799AB29E45F5B2EBC9DE /* Debug */,
+				399C6E064A4A47A98C06808B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		06E50CA3A1F046609963DEE4 /* Build configuration list for PBXNativeTarget "PRNotify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B318C0250B44975BAC9964C /* Debug */,
+				BA9B025C354345F5A684858B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 241532FAA4EF4C95A0037D7A /* Project object */;
+}
