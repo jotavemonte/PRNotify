@@ -1,5 +1,6 @@
 # PRNotify
 
+**Note**: This app was vibecoded
 macOS menu bar app that monitors GitHub PRs — review queue, your open PRs, and activity notifications.
 
 ## Features
