@@ -50,8 +50,8 @@ enum MenuBuilder {
             : "\(prs.count) PR\(prs.count == 1 ? "" : "s") awaiting review"))
         menu.addItem(.separator())
 
-        // PR list — oldest first (API already sorts asc)
-        for pr in prs.prefix(settings.maxPRsToShow) {
+        // PR list — sorted per settings
+        for pr in prs.sorted(by: settings.reviewQueueSort).prefix(settings.maxPRsToShow) {
             handler.register(pr: pr, handler: onOpenPR)
             let item = NSMenuItem(
                 title: "[\(pr.repositoryName)] #\(pr.number) \(pr.title)".capped(65),
@@ -95,12 +95,12 @@ enum MenuBuilder {
 
         menu.addItem(.separator())
 
-        // Authored PRs — my open PRs
+        // Authored PRs — my open PRs, sorted per settings
         if authoredPRs.isEmpty {
             menu.addItem(disabled("No open PRs"))
         } else {
             menu.addItem(disabled("My Open PRs"))
-            for pr in authoredPRs {
+            for pr in authoredPRs.sorted(by: settings.authoredPRsSort) {
                 handler.register(pr: pr, handler: onOpenPR)
                 let item = NSMenuItem(
                     title: "[\(pr.repositoryName)] #\(pr.number) \(pr.title)".capped(65),

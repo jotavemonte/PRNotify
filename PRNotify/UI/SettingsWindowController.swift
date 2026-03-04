@@ -9,12 +9,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var maxPRsField:      NSTextField!
     private var maxRecentField:   NSTextField!
     private var reviewPopup:      NSPopUpButton!
+    private var teamField:        NSTextField!
+    private var teamLabel:        NSTextField!
+    private var reviewSortPopup:  NSPopUpButton!
+    private var authoredSortPopup: NSPopUpButton!
     private var intervalField:    NSTextField!
     private var statusLabel:      NSTextField!
 
     convenience init() {
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 340),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 442),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false)
         w.title = "PRNotify Settings"
@@ -29,23 +33,26 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private func buildUI() {
         guard let cv = window?.contentView else { return }
-        var y: CGFloat = 296
+        var y: CGFloat = 398
         let lx: CGFloat = 20, lw: CGFloat = 190, fw: CGFloat = 200, fx: CGFloat = 218
 
-        func row(label: String, field: NSView) {
+        func row(label: String, field: NSView) -> NSTextField {
             let lbl = NSTextField(labelWithString: label)
             lbl.alignment = .right
             lbl.frame = NSRect(x: lx, y: y, width: lw, height: 22)
             field.frame = NSRect(x: fx, y: y, width: fw, height: 22)
             cv.addSubview(lbl); cv.addSubview(field)
             y -= 34
+            return lbl
         }
 
-        tokenField = NSSecureTextField(); row(label: "GitHub Token:", field: tokenField)
+        tokenField = NSSecureTextField()
         tokenField.placeholderString = "ghp_… (or set $GITHUB_TOKEN)"
+        _ = row(label: "GitHub Token:", field: tokenField)
 
-        usernameField = NSTextField(); row(label: "GitHub Username:", field: usernameField)
+        usernameField = NSTextField()
         usernameField.placeholderString = "your-github-login"
+        _ = row(label: "GitHub Username:", field: usernameField)
 
         let inferBtn = NSButton(title: "Auto-detect", target: self, action: #selector(inferUsername))
         inferBtn.frame = NSRect(x: fx, y: y, width: 110, height: 22)
@@ -56,17 +63,37 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         cv.addSubview(inferBtn); cv.addSubview(statusLabel)
         y -= 34
 
-        maxPRsField = NSTextField(); row(label: "Max PRs to show:", field: maxPRsField)
-        maxRecentField = NSTextField(); row(label: "Max recent PRs:", field: maxRecentField)
+        maxPRsField = NSTextField()
+        _ = row(label: "Max PRs to show:", field: maxPRsField)
+
+        maxRecentField = NSTextField()
+        _ = row(label: "Max recent PRs:", field: maxRecentField)
 
         reviewPopup = NSPopUpButton()
         reviewPopup.addItems(withTitles: [
             "user-review-requested (directly you)",
-            "review-requested (you or your teams)"
+            "review-requested (you or your teams)",
+            "team-review-requested (specific team)"
         ])
-        row(label: "Review filter:", field: reviewPopup)
+        reviewPopup.target = self
+        reviewPopup.action = #selector(reviewFilterChanged)
+        _ = row(label: "Review filter:", field: reviewPopup)
 
-        intervalField = NSTextField(); row(label: "Poll interval (seconds):", field: intervalField)
+        // Team slug field — only enabled when team filter is selected
+        teamField = NSTextField()
+        teamField.placeholderString = "org/team-slug"
+        teamLabel = row(label: "Team:", field: teamField)
+
+        reviewSortPopup = NSPopUpButton()
+        reviewSortPopup.addItems(withTitles: sortTitles)
+        _ = row(label: "Review queue order:", field: reviewSortPopup)
+
+        authoredSortPopup = NSPopUpButton()
+        authoredSortPopup.addItems(withTitles: sortTitles)
+        _ = row(label: "My PRs order:", field: authoredSortPopup)
+
+        intervalField = NSTextField()
+        _ = row(label: "Poll interval (seconds):", field: intervalField)
 
         // Buttons
         let save = NSButton(title: "Save", target: self, action: #selector(save))
@@ -78,6 +105,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         cv.addSubview(save); cv.addSubview(cancel)
     }
 
+    private let sortTitles = [
+        "Oldest first",
+        "Newest first"
+    ]
+
     // MARK: - Data
 
     private func loadValues() {
@@ -86,19 +118,38 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         usernameField.stringValue  = s.githubUsername
         maxPRsField.stringValue    = "\(s.maxPRsToShow)"
         maxRecentField.stringValue = "\(s.maxRecentPRsToShow)"
-        reviewPopup.selectItem(at: s.useUserReviewRequested ? 0 : 1)
-        intervalField.stringValue  = "\(s.pollIntervalSeconds)"
+        reviewPopup.selectItem(at: s.reviewFilter.rawValue)
+        teamField.stringValue         = s.teamSlug
+        reviewSortPopup.selectItem(at: s.reviewQueueSort.rawValue)
+        authoredSortPopup.selectItem(at: s.authoredPRsSort.rawValue)
+        intervalField.stringValue     = "\(s.pollIntervalSeconds)"
+        updateTeamFieldState()
+    }
+
+    @objc private func reviewFilterChanged() {
+        updateTeamFieldState()
+    }
+
+    private func updateTeamFieldState() {
+        let isTeam = reviewPopup.indexOfSelectedItem == Settings.ReviewFilter.teamReviewRequested.rawValue
+        teamField.isEnabled = isTeam
+        teamLabel.textColor = isTeam ? .labelColor : .disabledControlTextColor
+        if !isTeam { teamField.textColor = .disabledControlTextColor }
+        else { teamField.textColor = .labelColor }
     }
 
     @objc private func save() {
         var s = Settings.load()
         let tok = tokenField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        s.githubToken             = tok.isEmpty ? nil : tok
-        s.githubUsername          = usernameField.stringValue.trimmingCharacters(in: .whitespaces)
-        s.maxPRsToShow            = Int(maxPRsField.stringValue) ?? 20
-        s.maxRecentPRsToShow      = Int(maxRecentField.stringValue) ?? 10
-        s.useUserReviewRequested  = reviewPopup.indexOfSelectedItem == 0
-        s.pollIntervalSeconds     = Int(intervalField.stringValue) ?? 120
+        s.githubToken          = tok.isEmpty ? nil : tok
+        s.githubUsername       = usernameField.stringValue.trimmingCharacters(in: .whitespaces)
+        s.maxPRsToShow         = Int(maxPRsField.stringValue) ?? 20
+        s.maxRecentPRsToShow   = Int(maxRecentField.stringValue) ?? 10
+        s.reviewFilter         = Settings.ReviewFilter(rawValue: reviewPopup.indexOfSelectedItem) ?? .userReviewRequested
+        s.teamSlug             = teamField.stringValue.trimmingCharacters(in: .whitespaces)
+        s.reviewQueueSort      = Settings.SortOrder(rawValue: reviewSortPopup.indexOfSelectedItem) ?? .createdAsc
+        s.authoredPRsSort      = Settings.SortOrder(rawValue: authoredSortPopup.indexOfSelectedItem) ?? .createdDesc
+        s.pollIntervalSeconds  = Int(intervalField.stringValue) ?? 120
         s.save()
         onSave?()
         window?.close()

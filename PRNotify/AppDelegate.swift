@@ -74,7 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func pollAuthoredPRActivity(username: String) {
-        github.fetchAuthoredPRs(username: username) { [weak self] result in
+        let settings = Settings.load()
+        github.fetchAuthoredPRs(username: username, sort: settings.authoredPRsSort) { [weak self] result in
             guard let self, case .success(let prs) = result else { return }
             DispatchQueue.main.async {
                 self.authoredPRs = prs
@@ -111,7 +112,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         }
                         updated[pr.id] = PRActivityStore.Snapshot(
                             prID: pr.id,
-                            updatedAt: pr.createdAt,
                             commentCount: activity.commentCount,
                             approvalLogins: activity.approvalLogins,
                             changesLogins: activity.changesLogins

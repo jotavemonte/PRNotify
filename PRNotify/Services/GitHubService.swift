@@ -18,23 +18,25 @@ final class GitHubService {
     ) {
         if let token = resolvedToken() {
             fetchViaAPI(query: settings.searchQuery, token: token,
-                        maxCount: settings.maxPRsToShow, completion: completion)
+                        maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
+                        completion: completion)
         } else {
             fetchViaCLI(query: settings.searchQuery,
-                        maxCount: settings.maxPRsToShow, completion: completion)
+                        maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
+                        completion: completion)
         }
     }
 
     // Fetches open PRs authored by the user
     func fetchAuthoredPRs(
-        username: String,
+        username: String, sort: Settings.SortOrder,
         completion: @escaping (Result<[PullRequest], GitHubError>) -> Void
     ) {
         let query = "is:open is:pr author:\(username) archived:false"
         if let token = resolvedToken() {
-            fetchViaAPI(query: query, token: token, maxCount: 100, completion: completion)
+            fetchViaAPI(query: query, token: token, maxCount: 100, sort: sort, completion: completion)
         } else {
-            fetchViaCLI(query: query, maxCount: 100, completion: completion)
+            fetchViaCLI(query: query, maxCount: 100, sort: sort, completion: completion)
         }
     }
 
@@ -184,14 +186,14 @@ final class GitHubService {
     // MARK: - REST API
 
     private func fetchViaAPI(
-        query: String, token: String, maxCount: Int,
+        query: String, token: String, maxCount: Int, sort: Settings.SortOrder,
         completion: @escaping (Result<[PullRequest], GitHubError>) -> Void
     ) {
         var comps = URLComponents(string: "https://api.github.com/search/issues")!
         comps.queryItems = [
             URLQueryItem(name: "q",        value: query),
             URLQueryItem(name: "sort",     value: "created"),
-            URLQueryItem(name: "order",    value: "asc"),
+            URLQueryItem(name: "order",    value: sort == .createdAsc ? "asc" : "desc"),
             URLQueryItem(name: "per_page", value: "\(min(maxCount, 100))"),
             URLQueryItem(name: "page",     value: "1"),
         ]
@@ -244,7 +246,7 @@ final class GitHubService {
     }
 
     private func fetchViaCLI(
-        query: String, maxCount: Int,
+        query: String, maxCount: Int, sort: Settings.SortOrder,
         completion: @escaping (Result<[PullRequest], GitHubError>) -> Void
     ) {
         runCLI([
@@ -252,7 +254,7 @@ final class GitHubService {
             "--search", query,
             "--json", "number,title,url,createdAt,repository,author",
             "--limit", "\(maxCount)",
-            "--order", "asc",
+            "--order", sort == .createdAsc ? "asc" : "desc",
             "--sort", "created",
         ]) { result in
             switch result {

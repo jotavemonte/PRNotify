@@ -6,7 +6,6 @@ final class PRActivityStore {
 
     struct Snapshot: Codable {
         let prID: Int
-        let updatedAt: Date
         let commentCount: Int
         let approvalLogins: [String]   // logins who approved
         let changesLogins: [String]    // logins who requested changes
