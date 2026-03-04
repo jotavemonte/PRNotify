@@ -103,7 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         let prev = snapshots[pr.id]
                         if !isFirstRun, let prev {
                             if activity.commentCount > prev.commentCount {
-                                self.notifications.notifyNewComment(pr: pr)
+                                self.github.fetchLatestComment(repoName: pr.repositoryName, number: pr.number) { [weak self] result in
+                                    if case .success(let comment) = result {
+                                        self?.notifications.notifyNewComment(pr: pr, by: comment.authorLogin, preview: comment.body)
+                                    } else {
+                                        self?.notifications.notifyNewComment(pr: pr, by: "someone", preview: "New comment on \(pr.title)")
+                                    }
+                                }
                             }
                             for login in activity.approvalLogins where !prev.approvalLogins.contains(login) {
                                 self.notifications.notifyApproval(pr: pr, by: login)

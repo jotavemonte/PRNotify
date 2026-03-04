@@ -46,6 +46,83 @@ final class GitHubService {
         let changesLogins: [String]
     }
 
+    struct PRComment {
+        let authorLogin: String
+        let body: String
+    }
+
+    // Fetches the most recent comment on a PR (issue comment or review comment)
+    func fetchLatestComment(
+        repoName: String, number: Int,
+        completion: @escaping (Result<PRComment, GitHubError>) -> Void
+    ) {
+        if let token = resolvedToken() {
+            fetchLatestCommentViaAPI(repoName: repoName, number: number, token: token, completion: completion)
+        } else {
+            fetchLatestCommentViaCLI(repoName: repoName, number: number, completion: completion)
+        }
+    }
+
+    private func fetchLatestCommentViaAPI(
+        repoName: String, number: Int, token: String,
+        completion: @escaping (Result<PRComment, GitHubError>) -> Void
+    ) {
+        // Fetch both issue comments and review comments, pick the latest
+        let group = DispatchGroup()
+        var allComments: [(date: Date, login: String, body: String)] = []
+        let lock = NSLock()
+
+        func addComments(from data: Data, loginKey: String) {
+            guard let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            let iso = ISO8601DateFormatter()
+            for c in list {
+                guard let login = (c["user"] as? [String: Any])?["login"] as? String,
+                      let body = c["body"] as? String,
+                      let dateStr = c["updated_at"] as? String,
+                      let date = iso.date(from: dateStr) else { continue }
+                lock.lock(); allComments.append((date, login, body)); lock.unlock()
+            }
+        }
+
+        for path in ["issues/\(number)/comments", "pulls/\(number)/comments"] {
+            group.enter()
+            var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repoName)/\(path)?per_page=100")!)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.timeoutInterval = 10
+            URLSession.shared.dataTask(with: req) { data, _, _ in
+                defer { group.leave() }
+                if let data { addComments(from: data, loginKey: "user") }
+            }.resume()
+        }
+
+        group.notify(queue: .global()) {
+            guard let latest = allComments.max(by: { $0.date < $1.date }) else {
+                completion(.failure(.cli("No comments found"))); return
+            }
+            completion(.success(PRComment(authorLogin: latest.login, body: latest.body)))
+        }
+    }
+
+    private func fetchLatestCommentViaCLI(
+        repoName: String, number: Int,
+        completion: @escaping (Result<PRComment, GitHubError>) -> Void
+    ) {
+        runCLI(["api", "repos/\(repoName)/issues/\(number)/comments", "--jq",
+                "[.[] | {login: .user.login, body: .body, date: .updated_at}] | max_by(.date)"]) { result in
+            switch result {
+            case .failure(let e): completion(.failure(e))
+            case .success(let raw):
+                guard let data = raw.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let login = json["login"] as? String,
+                      let body  = json["body"] as? String
+                else { completion(.failure(.cli("Could not parse comment"))); return }
+                completion(.success(PRComment(authorLogin: login, body: body)))
+            }
+        }
+    }
+
     // Fetches current review + comment state for a single PR via REST API
     // Falls back to CLI. repoName = "owner/repo", number = PR number
     func fetchPRActivity(

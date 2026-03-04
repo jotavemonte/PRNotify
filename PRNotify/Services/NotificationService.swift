@@ -46,10 +46,13 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
              prURL: pr.htmlURL)
     }
 
-    func notifyNewComment(pr: PullRequest) {
+    func notifyNewComment(pr: PullRequest, by login: String, preview: String) {
+        let bodyPreview = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .newlines).first ?? preview
+        let capped = bodyPreview.count > 100 ? String(bodyPreview.prefix(99)) + "…" : bodyPreview
         fire(id: "comment-\(pr.id)-\(Date().timeIntervalSince1970)",
-             title: "New Comment",
-             body: "New comment on [\(pr.repositoryName)] #\(pr.number): \(pr.title)",
+             title: "@\(login) commented on [\(pr.repositoryName)] #\(pr.number)",
+             body: capped,
              prURL: pr.htmlURL)
     }
 
