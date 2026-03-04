@@ -93,9 +93,9 @@ enum MenuBuilder {
                 item.target = handler
                 item.representedObject = pr
                 item.image = statusIcon(for: pr, status: statusMap[pr.id],
-                                        slaBreachDays: settings.reviewSLADays, showClock: false)
+                                        slaBreachDays: settings.reviewSLADays, showClock: true)
                 item.toolTip = tooltip(for: pr, status: statusMap[pr.id],
-                                       slaBreachDays: settings.reviewSLADays, isReviewQueue: false, showClock: false)
+                                       slaBreachDays: settings.reviewSLADays, isReviewQueue: false, showClock: true)
                 menu.addItem(item)
             }
         }
