@@ -224,6 +224,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWC = SettingsWindowController()
             settingsWC?.onSave = { [weak self] in
                 self?.pollTimer?.invalidate()
+                self?.isFirstPoll = true
+                self?.knownPRIDs = []
+                self?.slaNotifiedIDs = []
                 self?.startPolling()
                 self?.statusItem.menu = self?.buildMenu()
             }
