@@ -1,29 +1,31 @@
 # PRNotify
 
-**Note**: This app was vibecoded
+**Note**: This app was vibecoded.
+
 macOS menu bar app that monitors GitHub PRs — review queue, your open PRs, and activity notifications.
 
 ## Features
 
 - **Menu bar badge** showing count of PRs awaiting your review
 - **Dropdown menu:**
-  - PRs awaiting review, oldest-first, up to 20 (configurable)
+  - PRs awaiting review, up to 20 (configurable), with configurable sort order
   - "See More" opens GitHub with the same query
-  - Recently visited review PRs, newest-first, up to 10 (configurable)
-  - Your open PRs (authored), for quick access
-- **System notifications:**
+  - Recently visited review PRs, up to 10 (configurable), with PR status indicators
+  - Your open PRs (authored), for quick access, with configurable sort order
+- **System notifications** (each individually toggleable):
   - New PR assigned for your review
   - New comment on your PR
   - Approval on your PR
   - Changes requested on your PR
-- **Settings** window (⌘,): token, username, limits, filter type, poll interval
+  - SLA breach — PR has been waiting for review beyond a configurable threshold
+- **Settings** window (⌘,): token, username, limits, filter type, sort orders, SLA threshold, notification toggles, poll interval
 - Runs as a **daemon on boot** via `SMAppService` (macOS 13+) or LaunchAgent
 
 ## Requirements
 
 - macOS 14+
 - Xcode Command Line Tools (`xcode-select --install`) or Xcode.app
-- GitHub token **or** `gh` CLI authenticated (`gh auth login`)
+- GitHub token (personal access token with `repo` read scope)
 
 ## Build & Run
 
@@ -48,9 +50,8 @@ Resolved in this order:
 
 1. Token saved in Settings window
 2. `GITHUB_TOKEN` environment variable
-3. `gh` CLI auth (`gh auth login`)
 
-The username is auto-detected from the token or CLI on first launch. It can also be set manually or via the "Auto-detect" button in Settings.
+The username is auto-detected from the token on first launch. It can also be set manually or via the "Auto-detect" button in Settings.
 
 ## Settings
 
@@ -60,7 +61,16 @@ The username is auto-detected from the token or CLI on first launch. It can also
 | GitHub Username | auto | Your GitHub login |
 | Max PRs to show | 20 | Review queue list limit |
 | Max recent PRs | 10 | Recently visited list limit |
-| Review filter | `user-review-requested` | `user-review-requested` = directly you; `review-requested` = you or your teams |
+| Review filter | `user-review-requested` | `user-review-requested` = directly you; `review-requested` = you or your teams; `team-review-requested` = a specific team |
+| Team slug | — | `org/team` slug, required when filter is `team-review-requested` |
+| Review queue sort | oldest first | Sort order for the review queue |
+| Authored PRs sort | newest first | Sort order for your open PRs |
+| Review SLA (days) | 2 | Days before a PR is considered overdue; triggers SLA breach notifications |
+| Notify: new PRs | on | Notify when a new PR is assigned for review |
+| Notify: comments | on | Notify when a new comment appears on your PR |
+| Notify: approvals | on | Notify when your PR is approved |
+| Notify: changes requested | on | Notify when changes are requested on your PR |
+| Notify: SLA breach | on | Notify when a review PR exceeds the SLA threshold |
 | Poll interval | 120s | How often to fetch from GitHub |
 
 ## Notifications
@@ -68,15 +78,16 @@ The username is auto-detected from the token or CLI on first launch. It can also
 | Event | Trigger |
 |---|---|
 | New review requested | A PR matching the review filter appeared since last poll |
-| New comment | Comment count increased on one of your open PRs |
+| New comment | A new comment (including review comments) appeared on one of your open PRs |
 | Approval | Someone approved your PR |
 | Changes requested | Someone requested changes on your PR |
+| SLA breach | A PR in the review queue has been open longer than the configured SLA threshold |
 
-Clicking a notification opens the PR in the browser.
+Clicking a notification opens the PR in the browser. Each notification type can be toggled individually in Settings.
 
 ## Notes
 
-- App Sandbox is **disabled** — required for `gh` CLI calls and unrestricted network access
+- App Sandbox is **disabled** — required for unrestricted network access
 - No Dock icon — menu bar only
 - All data (settings, recent PRs, activity snapshots) stored in `UserDefaults` under `com.prnotify`
 - All GitHub interactions are **read-only** (GET requests only)
