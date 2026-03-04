@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifications.requestAuthorization()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        recentStore.clear()
         statusItem.menu = buildMenu()
         startSpinner()
 
@@ -244,6 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.isFirstPoll = true
                 self?.knownPRIDs = []
                 self?.slaNotifiedIDs = []
+                self?.recentStore.clear()
                 self?.startSpinner()
                 self?.startPolling()
             }

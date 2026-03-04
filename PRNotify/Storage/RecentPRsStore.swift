@@ -11,6 +11,10 @@ final class RecentPRsStore {
         return entries.sorted { $0.visitedAt > $1.visitedAt }.map { $0.pr }
     }
 
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     func record(_ pr: PullRequest) {
         var entries = loadEntries()
         entries.removeAll { $0.pr.id == pr.id }
