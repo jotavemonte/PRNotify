@@ -18,6 +18,14 @@
     <string>1</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>MacOSX</string>
+    </array>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>NSUserNotificationUsageDescription</key>
     <string>PRNotify sends notifications when new pull requests need your review.</string>
     <key>NSAppTransportSecurity</key>

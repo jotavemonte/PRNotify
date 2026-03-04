@@ -27,6 +27,7 @@ build:
 	cp PRNotify/PRNotify-Info.plist $(PLIST)
 	cp PRNotify/Assets/menubar-icon.svg $(RESOURCES)/
 	printf 'APPL????' > $(APP)/Contents/PkgInfo
+	codesign --force --deep --sign - $(APP)
 	@echo "Built $(APP)"
 
 clean:
