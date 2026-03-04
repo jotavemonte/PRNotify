@@ -46,6 +46,13 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
              prURL: pr.htmlURL)
     }
 
+    func notifySLABreached(pr: PullRequest) {
+        fire(id: "sla-\(pr.id)",
+             title: "PR Review Overdue",
+             body: "[\(pr.repositoryName)] #\(pr.number) by @\(pr.author): \(pr.title)",
+             prURL: pr.htmlURL)
+    }
+
     func notifyNewComment(pr: PullRequest, by login: String, preview: String) {
         let bodyPreview = preview.trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines).first ?? preview

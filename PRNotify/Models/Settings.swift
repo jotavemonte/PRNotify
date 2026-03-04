@@ -23,6 +23,11 @@ struct Settings {
         static let reviewQueueSort     = "reviewQueueSort"
         static let authoredPRsSort     = "authoredPRsSort"
         static let reviewSLADays       = "reviewSLADays"
+        static let notifyNewPRs        = "notifyNewPRs"
+        static let notifyComments      = "notifyComments"
+        static let notifyApprovals     = "notifyApprovals"
+        static let notifyChanges       = "notifyChanges"
+        static let notifySLA           = "notifySLA"
     }
 
     var githubToken: String?
@@ -35,6 +40,11 @@ struct Settings {
     var reviewQueueSort: SortOrder
     var authoredPRsSort: SortOrder
     var reviewSLADays: Int
+    var notifyNewPRs: Bool
+    var notifyComments: Bool
+    var notifyApprovals: Bool
+    var notifyChanges: Bool
+    var notifySLA: Bool
 
     static func load() -> Settings {
         let d = UserDefaults.standard
@@ -51,7 +61,12 @@ struct Settings {
             pollIntervalSeconds:  d.integer(forKey: Keys.pollIntervalSeconds).nonZeroOr(120),
             reviewQueueSort:      SortOrder(rawValue: d.integer(forKey: Keys.reviewQueueSort)) ?? .createdAsc,
             authoredPRsSort:      SortOrder(rawValue: d.integer(forKey: Keys.authoredPRsSort)) ?? .createdDesc,
-            reviewSLADays:        d.integer(forKey: Keys.reviewSLADays).nonZeroOr(2)
+            reviewSLADays:        d.integer(forKey: Keys.reviewSLADays).nonZeroOr(2),
+            notifyNewPRs:         d.object(forKey: Keys.notifyNewPRs)   == nil ? true : d.bool(forKey: Keys.notifyNewPRs),
+            notifyComments:       d.object(forKey: Keys.notifyComments)  == nil ? true : d.bool(forKey: Keys.notifyComments),
+            notifyApprovals:      d.object(forKey: Keys.notifyApprovals) == nil ? true : d.bool(forKey: Keys.notifyApprovals),
+            notifyChanges:        d.object(forKey: Keys.notifyChanges)   == nil ? true : d.bool(forKey: Keys.notifyChanges),
+            notifySLA:            d.object(forKey: Keys.notifySLA)       == nil ? true : d.bool(forKey: Keys.notifySLA)
         )
     }
 
@@ -71,6 +86,11 @@ struct Settings {
         d.set(reviewQueueSort.rawValue, forKey: Keys.reviewQueueSort)
         d.set(authoredPRsSort.rawValue, forKey: Keys.authoredPRsSort)
         d.set(reviewSLADays,            forKey: Keys.reviewSLADays)
+        d.set(notifyNewPRs,             forKey: Keys.notifyNewPRs)
+        d.set(notifyComments,           forKey: Keys.notifyComments)
+        d.set(notifyApprovals,          forKey: Keys.notifyApprovals)
+        d.set(notifyChanges,            forKey: Keys.notifyChanges)
+        d.set(notifySLA,                forKey: Keys.notifySLA)
     }
 
     var reviewFilterClause: String {

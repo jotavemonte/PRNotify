@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var authoredPRs: [PullRequest] = []
     private var knownPRIDs: Set<Int> = []        // empty = first run (no notifications)
     private var prStatusMap: [Int: PRStatus] = [:]
+    private var slaNotifiedIDs: Set<Int> = []    // PRs already notified for SLA breach
+    private var isFirstPoll = true               // skip all notifications on first poll
 
     private let github        = GitHubService()
     private let notifications = NotificationService()
@@ -102,7 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     queue.sync {
                         let prev = snapshots[pr.id]
                         if !isFirstRun, let prev {
-                            if activity.commentCount > prev.commentCount {
+                            let s = Settings.load()
+                            if s.notifyComments && activity.commentCount > prev.commentCount {
                                 self.github.fetchLatestComment(repoName: pr.repositoryName, number: pr.number) { [weak self] result in
                                     if case .success(let comment) = result {
                                         self?.notifications.notifyNewComment(pr: pr, by: comment.authorLogin, preview: comment.body)
@@ -111,11 +114,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                     }
                                 }
                             }
-                            for login in activity.approvalLogins where !prev.approvalLogins.contains(login) {
-                                self.notifications.notifyApproval(pr: pr, by: login)
+                            if s.notifyApprovals {
+                                for login in activity.approvalLogins where !prev.approvalLogins.contains(login) {
+                                    self.notifications.notifyApproval(pr: pr, by: login)
+                                }
                             }
-                            for login in activity.changesLogins where !prev.changesLogins.contains(login) {
-                                self.notifications.notifyChangesRequested(pr: pr, by: login)
+                            if s.notifyChanges {
+                                for login in activity.changesLogins where !prev.changesLogins.contains(login) {
+                                    self.notifications.notifyChangesRequested(pr: pr, by: login)
+                                }
                             }
                         }
                         updated[pr.id] = PRActivityStore.Snapshot(
@@ -136,11 +143,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleFreshPRs(_ fresh: [PullRequest], statuses: [Int: PRStatus]) {
         let freshIDs = Set(fresh.map { $0.id })
+        let settings = Settings.load()
 
-        // Only notify on subsequent polls (skip first-run baseline)
-        if !knownPRIDs.isEmpty {
-            let newPRs = fresh.filter { !knownPRIDs.contains($0.id) }
-            if !newPRs.isEmpty { notifications.notifyNewPRs(newPRs) }
+        if !isFirstPoll {
+            // Notify new PRs
+            if settings.notifyNewPRs {
+                let newPRs = fresh.filter { !knownPRIDs.contains($0.id) }
+                if !newPRs.isEmpty { notifications.notifyNewPRs(newPRs) }
+            }
+
+            // Notify SLA breaches: only PRs that crossed the threshold since last poll
+            // (were not already breached on first poll, and not previously notified)
+            if settings.notifySLA {
+                let slaThreshold = TimeInterval(settings.reviewSLADays * 86400)
+                for pr in fresh {
+                    guard !slaNotifiedIDs.contains(pr.id),
+                          Date().timeIntervalSince(pr.createdAt) >= slaThreshold else { continue }
+                    slaNotifiedIDs.insert(pr.id)
+                    notifications.notifySLABreached(pr: pr)
+                }
+            }
+        } else {
+            // First poll: seed slaNotifiedIDs with already-breached PRs so we never notify them
+            let slaThreshold = TimeInterval(settings.reviewSLADays * 86400)
+            for pr in fresh where Date().timeIntervalSince(pr.createdAt) >= slaThreshold {
+                slaNotifiedIDs.insert(pr.id)
+            }
+            isFirstPoll = false
         }
 
         knownPRIDs = freshIDs
