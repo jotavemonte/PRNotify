@@ -4,7 +4,7 @@ enum GitHubError: Error {
     case noCredentials
     case network(Error)
     case decoding(Error)
-    case cli(String)
+    case graphQL(String)
     case usernameUnresolved
 }
 
@@ -16,19 +16,14 @@ final class GitHubService {
         settings: Settings,
         completion: @escaping (Result<([PullRequest], [Int: PRStatus]), GitHubError>) -> Void
     ) {
-        if let token = resolvedToken() {
-            fetchViaGraphQL(query: settings.searchQuery, token: token,
-                            maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
-                            includeActivity: false) { result in
-                switch result {
-                case .failure(let e): completion(.failure(e))
-                case .success(let (prs, statuses, _, _)): completion(.success((prs, statuses)))
-                }
-            }
-        } else {
-            fetchViaCLI(query: settings.searchQuery,
+        guard let token = resolvedToken() else { completion(.failure(.noCredentials)); return }
+        fetchViaGraphQL(query: settings.searchQuery, token: token,
                         maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
-                        completion: completion)
+                        includeActivity: false) { result in
+            switch result {
+            case .failure(let e): completion(.failure(e))
+            case .success(let (prs, statuses, _, _)): completion(.success((prs, statuses)))
+            }
         }
     }
 
@@ -37,21 +32,13 @@ final class GitHubService {
         username: String, sort: Settings.SortOrder,
         completion: @escaping (Result<([PullRequest], [Int: PRStatus], [Int: PRActivity], [Int: PRComment]), GitHubError>) -> Void
     ) {
+        guard let token = resolvedToken() else { completion(.failure(.noCredentials)); return }
         let query = "is:open is:pr author:\(username) archived:false"
-        if let token = resolvedToken() {
-            fetchViaGraphQL(query: query, token: token, maxCount: 100, sort: sort, includeActivity: true) { result in
-                switch result {
-                case .failure(let e): completion(.failure(e))
-                case .success(let (prs, statuses, activities, latestComments)):
-                    completion(.success((prs, statuses, activities, latestComments)))
-                }
-            }
-        } else {
-            fetchViaCLI(query: query, maxCount: 100, sort: sort) { result in
-                switch result {
-                case .failure(let e): completion(.failure(e))
-                case .success(let (prs, statuses)): completion(.success((prs, statuses, [:], [:])))
-                }
+        fetchViaGraphQL(query: query, token: token, maxCount: 100, sort: sort, includeActivity: true) { result in
+            switch result {
+            case .failure(let e): completion(.failure(e))
+            case .success(let (prs, statuses, activities, latestComments)):
+                completion(.success((prs, statuses, activities, latestComments)))
             }
         }
     }
@@ -68,11 +55,8 @@ final class GitHubService {
     }
 
     func resolveUsername(completion: @escaping (Result<String, GitHubError>) -> Void) {
-        if let token = resolvedToken() {
-            fetchUsernameViaAPI(token: token, completion: completion)
-        } else {
-            fetchUsernameViaCLI(completion: completion)
-        }
+        guard let token = resolvedToken() else { completion(.failure(.noCredentials)); return }
+        fetchUsernameViaAPI(token: token, completion: completion)
     }
 
     // MARK: - Token
@@ -285,7 +269,7 @@ final class GitHubService {
         ]
 
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
-            completion(.failure(.cli("Failed to serialize GraphQL request")))
+            completion(.failure(.graphQL("Failed to serialize GraphQL request")))
             return
         }
 
@@ -307,7 +291,7 @@ final class GitHubService {
                 if let errors = resp.errors, !errors.isEmpty {
                     let msg = errors.map { $0.message }.joined(separator: "; ")
                     NSLog("[PRNotify] GraphQL errors: %@", msg)
-                    completion(.failure(.cli(msg)))
+                    completion(.failure(.graphQL(msg)))
                     return
                 }
 
@@ -355,85 +339,4 @@ final class GitHubService {
         }.resume()
     }
 
-    // MARK: - gh CLI
-
-    private let ghPaths = ["/usr/local/bin/gh", "/opt/homebrew/bin/gh"]
-
-    private var ghExecutable: String? {
-        ghPaths.first { FileManager.default.isExecutableFile(atPath: $0) }
-    }
-
-    private func fetchViaCLI(
-        query: String, maxCount: Int, sort: Settings.SortOrder,
-        completion: @escaping (Result<([PullRequest], [Int: PRStatus]), GitHubError>) -> Void
-    ) {
-        runCLI([
-            "search", "prs",
-            "--search", query,
-            "--json", "number,title,url,createdAt,repository,author,reviewDecision,statusCheckRollup,mergeStateStatus",
-            "--limit", "\(maxCount)",
-            "--order", sort == .createdAsc ? "asc" : "desc",
-            "--sort", "created",
-        ]) { result in
-            switch result {
-            case .failure(let e): completion(.failure(e))
-            case .success(let output):
-                do {
-                    let decoder = JSONDecoder()
-                    decoder.dateDecodingStrategy = .iso8601
-                    let items = try decoder.decode([CLIPullRequest].self, from: Data(output.utf8))
-                    var statusMap: [Int: PRStatus] = [:]
-                    let prs = items.map { item -> PullRequest in
-                        let pr = item.asPullRequest()
-                        statusMap[pr.id] = item.asPRStatus()
-                        return pr
-                    }
-                    completion(.success((prs, statusMap)))
-                } catch {
-                    completion(.failure(.decoding(error)))
-                }
-            }
-        }
-    }
-
-    private func fetchUsernameViaCLI(
-        completion: @escaping (Result<String, GitHubError>) -> Void
-    ) {
-        runCLI(["api", "user", "--jq", ".login"]) { result in
-            switch result {
-            case .failure(let e): completion(.failure(e))
-            case .success(let raw):
-                let login = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !login.isEmpty else { completion(.failure(.usernameUnresolved)); return }
-                completion(.success(login))
-            }
-        }
-    }
-
-    private func runCLI(_ args: [String], completion: @escaping (Result<String, GitHubError>) -> Void) {
-        guard let gh = ghExecutable else { completion(.failure(.noCredentials)); return }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: gh)
-            task.arguments = args
-            let out = Pipe(), err = Pipe()
-            task.standardOutput = out
-            task.standardError  = err
-
-            do {
-                try task.run()
-                task.waitUntilExit()
-                let output = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                if task.terminationStatus == 0 {
-                    completion(.success(output))
-                } else {
-                    let errMsg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                    completion(.failure(.cli(errMsg.trimmingCharacters(in: .whitespacesAndNewlines))))
-                }
-            } catch {
-                completion(.failure(.cli(error.localizedDescription)))
-            }
-        }
-    }
 }
