@@ -25,7 +25,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init() {
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 644),
+            contentRect: NSRect(x: 0, y: 0, width: 660, height: 440),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false)
         w.title = "PRNotify Settings"
@@ -40,8 +40,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private func buildUI() {
         guard let cv = window?.contentView else { return }
-        var y: CGFloat = 600
+        // Left column geometry
         let lx: CGFloat = 20, lw: CGFloat = 190, fw: CGFloat = 200, fx: CGFloat = 218
+        let rowH: CGFloat = 34
+        // Right column geometry — starts after a divider at x=440
+        let rx: CGFloat = 450, rw: CGFloat = 190
+        let winH: CGFloat = 440
+        let bottomPad: CGFloat = 56
+
+        // Left column: form fields
+        var y: CGFloat = 410
 
         func row(label: String, field: NSView) -> NSTextField {
             let lbl = NSTextField(labelWithString: label)
@@ -49,7 +57,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             lbl.frame = NSRect(x: lx, y: y, width: lw, height: 22)
             field.frame = NSRect(x: fx, y: y, width: fw, height: 22)
             cv.addSubview(lbl); cv.addSubview(field)
-            y -= 34
+            y -= rowH
             return lbl
         }
 
@@ -68,7 +76,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.font = .systemFont(ofSize: 11)
         cv.addSubview(inferBtn); cv.addSubview(statusLabel)
-        y -= 34
+        y -= rowH
 
         maxPRsField = NSTextField()
         _ = row(label: "Max PRs to show:", field: maxPRsField)
@@ -86,7 +94,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         reviewPopup.action = #selector(reviewFilterChanged)
         _ = row(label: "Review filter:", field: reviewPopup)
 
-        // Team slug field — only enabled when team filter is selected
         teamField = NSTextField()
         teamField.placeholderString = "org/team-slug"
         teamLabel = row(label: "Team:", field: teamField)
@@ -105,25 +112,30 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         intervalField = NSTextField()
         _ = row(label: "Poll interval (seconds):", field: intervalField)
 
-        // Notifications section
-        y -= 8
-        let sectionLine = NSBox()
-        sectionLine.boxType = .separator
-        sectionLine.frame = NSRect(x: lx, y: y, width: lx + lw + fw, height: 1)
-        cv.addSubview(sectionLine)
-        y -= 20
+        // Vertical divider
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.frame = NSRect(x: rx - 16, y: bottomPad, width: 1, height: winH - bottomPad - 20)
+        cv.addSubview(divider)
+
+        // Right column: notifications, vertically centered
+        let checkH: CGFloat = 28
+        let labelH: CGFloat = 24
+        let blockH = labelH + 5 * checkH
+        let usableH = winH - bottomPad
+        var ry = bottomPad + (usableH + blockH) / 2  // top of block
 
         let sectionLabel = NSTextField(labelWithString: "Notifications")
         sectionLabel.font = .boldSystemFont(ofSize: 13)
-        sectionLabel.frame = NSRect(x: fx, y: y, width: fw, height: 20)
+        sectionLabel.frame = NSRect(x: rx, y: ry - labelH, width: rw, height: labelH)
         cv.addSubview(sectionLabel)
-        y -= 30
+        ry -= labelH
 
         func checkbox(title: String) -> NSButton {
             let btn = NSButton(checkboxWithTitle: title, target: nil, action: nil)
-            btn.frame = NSRect(x: lx, y: y, width: lw + fw, height: 22)
+            btn.frame = NSRect(x: rx, y: ry - 22, width: rw, height: 22)
             cv.addSubview(btn)
-            y -= 28
+            ry -= checkH
             return btn
         }
 
@@ -133,13 +145,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         notifyChangesCheck   = checkbox(title: "Changes requested")
         notifySLACheck       = checkbox(title: "Review SLA breached")
 
-        // Buttons
+        // Buttons (bottom-right)
         let save = NSButton(title: "Save", target: self, action: #selector(save))
         save.bezelStyle = .rounded; save.keyEquivalent = "\r"
-        save.frame = NSRect(x: fx + fw - 80, y: 12, width: 80, height: 32)
+        save.frame = NSRect(x: rx + rw - 80, y: 12, width: 80, height: 32)
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel))
         cancel.bezelStyle = .rounded; cancel.keyEquivalent = "\u{1b}"
-        cancel.frame = NSRect(x: fx + fw - 166, y: 12, width: 80, height: 32)
+        cancel.frame = NSRect(x: rx + rw - 166, y: 12, width: 80, height: 32)
         cv.addSubview(save); cv.addSubview(cancel)
     }
 
