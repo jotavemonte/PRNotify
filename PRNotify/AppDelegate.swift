@@ -5,6 +5,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
     private var pollTimer: Timer?
+    private var spinnerTimer: Timer?
+    private var spinnerFrame = 0
+    private let spinnerFrames = ["◐", "◓", "◑", "◒"]
     private var currentPRs: [PullRequest] = []
     private var authoredPRs: [PullRequest] = []
     private var knownPRIDs: Set<Int> = []        // empty = first run (no notifications)
@@ -26,8 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifications.requestAuthorization()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        updateIcon(count: nil)  // loading state
         statusItem.menu = buildMenu()
+        startSpinner()
 
         // Register as login item (macOS 13+)
         if #available(macOS 13.0, *) {
@@ -68,7 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 switch result {
                 case .success(let (prs, statuses)):  self?.handleFreshPRs(prs, statuses: statuses)
-                case .failure(let err):              NSLog("[PRNotify] fetch error: %@", "\(err)")
+                case .failure(let err):
+                    NSLog("[PRNotify] fetch error: %@", "\(err)")
+                    self?.updateIcon(count: nil)
                 }
             }
         }
@@ -79,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func pollAuthoredPRActivity(username: String) {
         let settings = Settings.load()
         github.fetchAuthoredPRs(username: username, sort: settings.authoredPRsSort) { [weak self] result in
-            guard let self, case .success(let (prs, statuses)) = result else { return }
+            guard let self, case .success(let (prs, statuses, activityMap, latestCommentMap)) = result else { return }
             DispatchQueue.main.async {
                 self.authoredPRs = prs
                 self.prStatusMap.merge(statuses) { _, new in new }
@@ -89,55 +94,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let snapshots = self.activityStore.load()
             let isFirstRun = snapshots.isEmpty
             let openIDs = Set(prs.map { $0.id })
-
-            // Use a serial queue to safely accumulate updates from concurrent PR fetches
-            let queue = DispatchQueue(label: "com.prnotify.activity")
             var updated = snapshots.filter { openIDs.contains($0.key) }  // prune closed PRs
-            let group = DispatchGroup()
 
             for pr in prs {
-                group.enter()
-                self.github.fetchPRActivity(repoName: pr.repositoryName, number: pr.number) { [weak self] result in
-                    defer { group.leave() }
-                    guard let self, case .success(let activity) = result else { return }
-
-                    queue.sync {
-                        let prev = snapshots[pr.id]
-                        if !isFirstRun, let prev {
-                            let s = Settings.load()
-                            if s.notifyComments && activity.commentCount > prev.commentCount {
-                                self.github.fetchLatestComment(repoName: pr.repositoryName, number: pr.number) { [weak self] result in
-                                    if case .success(let comment) = result {
-                                        self?.notifications.notifyNewComment(pr: pr, by: comment.authorLogin, preview: comment.body)
-                                    } else {
-                                        self?.notifications.notifyNewComment(pr: pr, by: "someone", preview: "New comment on \(pr.title)")
-                                    }
-                                }
-                            }
-                            if s.notifyApprovals {
-                                for login in activity.approvalLogins where !prev.approvalLogins.contains(login) {
-                                    self.notifications.notifyApproval(pr: pr, by: login)
-                                }
-                            }
-                            if s.notifyChanges {
-                                for login in activity.changesLogins where !prev.changesLogins.contains(login) {
-                                    self.notifications.notifyChangesRequested(pr: pr, by: login)
-                                }
-                            }
+                guard let activity = activityMap[pr.id] else { continue }
+                let prev = snapshots[pr.id]
+                if !isFirstRun, let prev {
+                    let s = Settings.load()
+                    if s.notifyComments && activity.commentCount > prev.commentCount {
+                        if let comment = latestCommentMap[pr.id] {
+                            self.notifications.notifyNewComment(pr: pr, by: comment.authorLogin, preview: comment.body)
+                        } else {
+                            self.notifications.notifyNewComment(pr: pr, by: "someone", preview: "New comment on \(pr.title)")
                         }
-                        updated[pr.id] = PRActivityStore.Snapshot(
-                            prID: pr.id,
-                            commentCount: activity.commentCount,
-                            approvalLogins: activity.approvalLogins,
-                            changesLogins: activity.changesLogins
-                        )
+                    }
+                    if s.notifyApprovals {
+                        for login in activity.approvalLogins where !prev.approvalLogins.contains(login) {
+                            self.notifications.notifyApproval(pr: pr, by: login)
+                        }
+                    }
+                    if s.notifyChanges {
+                        for login in activity.changesLogins where !prev.changesLogins.contains(login) {
+                            self.notifications.notifyChangesRequested(pr: pr, by: login)
+                        }
                     }
                 }
+                updated[pr.id] = PRActivityStore.Snapshot(
+                    prID: pr.id,
+                    commentCount: activity.commentCount,
+                    approvalLogins: activity.approvalLogins,
+                    changesLogins: activity.changesLogins
+                )
             }
 
-            group.notify(queue: queue) { [weak self] in
-                self?.activityStore.save(updated)
-            }
+            self.activityStore.save(updated)
         }
     }
 
@@ -182,9 +172,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Icon
 
     private func updateIcon(count: Int?) {
+        stopSpinner()
         guard let btn = statusItem.button else { return }
+        btn.attributedTitle = NSAttributedString(string: "")
         btn.image = branchIcon
         btn.title = count.map { $0 == 0 ? "" : " \($0)" } ?? ""
+    }
+
+    private func startSpinner() {
+        guard let btn = statusItem.button else { return }
+        spinnerFrame = 0
+        setSpinnerFrame(btn)
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            guard let self, let btn = self.statusItem.button else { return }
+            self.spinnerFrame = (self.spinnerFrame + 1) % self.spinnerFrames.count
+            self.setSpinnerFrame(btn)
+        }
+    }
+
+    private func setSpinnerFrame(_ btn: NSStatusBarButton) {
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.menuBarFont(ofSize: 0),
+            .foregroundColor: NSColor.labelColor
+        ]
+        btn.attributedTitle = NSAttributedString(string: spinnerFrames[spinnerFrame], attributes: attrs)
+        btn.image = nil
+    }
+
+    private func stopSpinner() {
+        spinnerTimer?.invalidate()
+        spinnerTimer = nil
     }
 
     private var branchIcon: NSImage {
@@ -227,8 +244,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.isFirstPoll = true
                 self?.knownPRIDs = []
                 self?.slaNotifiedIDs = []
+                self?.startSpinner()
                 self?.startPolling()
-                self?.statusItem.menu = self?.buildMenu()
             }
         }
         NSApp.setActivationPolicy(.regular)

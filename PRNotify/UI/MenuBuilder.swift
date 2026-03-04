@@ -93,7 +93,7 @@ enum MenuBuilder {
                 item.target = handler
                 item.representedObject = pr
                 item.image = statusIcon(for: pr, status: statusMap[pr.id],
-                                        slaBreachDays: settings.reviewSLADays, showClock: true)
+                                        slaBreachDays: settings.reviewSLADays, showClock: true) ?? emptyIcon
                 item.toolTip = tooltip(for: pr, status: statusMap[pr.id],
                                        slaBreachDays: settings.reviewSLADays, isReviewQueue: false, showClock: true)
                 menu.addItem(item)
@@ -166,6 +166,11 @@ enum MenuBuilder {
 
         return nil
     }
+
+    private static let emptyIcon: NSImage = {
+        let img = NSImage(size: NSSize(width: 12, height: 12))
+        return img
+    }()
 
     private static func symbol(_ name: String, color: NSColor) -> NSImage? {
         let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)

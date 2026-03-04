@@ -19,7 +19,12 @@ final class GitHubService {
         if let token = resolvedToken() {
             fetchViaGraphQL(query: settings.searchQuery, token: token,
                             maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
-                            completion: completion)
+                            includeActivity: false) { result in
+                switch result {
+                case .failure(let e): completion(.failure(e))
+                case .success(let (prs, statuses, _, _)): completion(.success((prs, statuses)))
+                }
+            }
         } else {
             fetchViaCLI(query: settings.searchQuery,
                         maxCount: settings.maxPRsToShow, sort: settings.reviewQueueSort,
@@ -27,16 +32,27 @@ final class GitHubService {
         }
     }
 
-    // Fetches open PRs authored by the user
+    // Fetches open PRs authored by the user, including activity + latest comment data in one GraphQL call
     func fetchAuthoredPRs(
         username: String, sort: Settings.SortOrder,
-        completion: @escaping (Result<([PullRequest], [Int: PRStatus]), GitHubError>) -> Void
+        completion: @escaping (Result<([PullRequest], [Int: PRStatus], [Int: PRActivity], [Int: PRComment]), GitHubError>) -> Void
     ) {
         let query = "is:open is:pr author:\(username) archived:false"
         if let token = resolvedToken() {
-            fetchViaGraphQL(query: query, token: token, maxCount: 100, sort: sort, completion: completion)
+            fetchViaGraphQL(query: query, token: token, maxCount: 100, sort: sort, includeActivity: true) { result in
+                switch result {
+                case .failure(let e): completion(.failure(e))
+                case .success(let (prs, statuses, activities, latestComments)):
+                    completion(.success((prs, statuses, activities, latestComments)))
+                }
+            }
         } else {
-            fetchViaCLI(query: query, maxCount: 100, sort: sort, completion: completion)
+            fetchViaCLI(query: query, maxCount: 100, sort: sort) { result in
+                switch result {
+                case .failure(let e): completion(.failure(e))
+                case .success(let (prs, statuses)): completion(.success((prs, statuses, [:], [:])))
+                }
+            }
         }
     }
 
@@ -49,197 +65,6 @@ final class GitHubService {
     struct PRComment {
         let authorLogin: String
         let body: String
-    }
-
-    // Fetches the most recent comment on a PR (issue comment or review comment)
-    func fetchLatestComment(
-        repoName: String, number: Int,
-        completion: @escaping (Result<PRComment, GitHubError>) -> Void
-    ) {
-        if let token = resolvedToken() {
-            fetchLatestCommentViaAPI(repoName: repoName, number: number, token: token, completion: completion)
-        } else {
-            fetchLatestCommentViaCLI(repoName: repoName, number: number, completion: completion)
-        }
-    }
-
-    private func fetchLatestCommentViaAPI(
-        repoName: String, number: Int, token: String,
-        completion: @escaping (Result<PRComment, GitHubError>) -> Void
-    ) {
-        // Fetch both issue comments and review comments, pick the latest
-        let group = DispatchGroup()
-        var allComments: [(date: Date, login: String, body: String)] = []
-        let lock = NSLock()
-
-        func addComments(from data: Data, loginKey: String) {
-            guard let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-            let iso = ISO8601DateFormatter()
-            for c in list {
-                guard let login = (c["user"] as? [String: Any])?["login"] as? String,
-                      let body = c["body"] as? String,
-                      let dateStr = c["updated_at"] as? String,
-                      let date = iso.date(from: dateStr) else { continue }
-                lock.lock(); allComments.append((date, login, body)); lock.unlock()
-            }
-        }
-
-        for path in ["issues/\(number)/comments", "pulls/\(number)/comments"] {
-            group.enter()
-            var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repoName)/\(path)?per_page=100")!)
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            req.timeoutInterval = 10
-            URLSession.shared.dataTask(with: req) { data, _, _ in
-                defer { group.leave() }
-                if let data { addComments(from: data, loginKey: "user") }
-            }.resume()
-        }
-
-        group.notify(queue: .global()) {
-            guard let latest = allComments.max(by: { $0.date < $1.date }) else {
-                completion(.failure(.cli("No comments found"))); return
-            }
-            completion(.success(PRComment(authorLogin: latest.login, body: latest.body)))
-        }
-    }
-
-    private func fetchLatestCommentViaCLI(
-        repoName: String, number: Int,
-        completion: @escaping (Result<PRComment, GitHubError>) -> Void
-    ) {
-        runCLI(["api", "repos/\(repoName)/issues/\(number)/comments", "--jq",
-                "[.[] | {login: .user.login, body: .body, date: .updated_at}] | max_by(.date)"]) { result in
-            switch result {
-            case .failure(let e): completion(.failure(e))
-            case .success(let raw):
-                guard let data = raw.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let login = json["login"] as? String,
-                      let body  = json["body"] as? String
-                else { completion(.failure(.cli("Could not parse comment"))); return }
-                completion(.success(PRComment(authorLogin: login, body: body)))
-            }
-        }
-    }
-
-    // Fetches current review + comment state for a single PR via REST API
-    // Falls back to CLI. repoName = "owner/repo", number = PR number
-    func fetchPRActivity(
-        repoName: String, number: Int,
-        completion: @escaping (Result<PRActivity, GitHubError>) -> Void
-    ) {
-        if let token = resolvedToken() {
-            fetchActivityViaAPI(repoName: repoName, number: number, token: token, completion: completion)
-        } else {
-            fetchActivityViaCLI(repoName: repoName, number: number, completion: completion)
-        }
-    }
-
-    private func fetchActivityViaAPI(
-        repoName: String, number: Int, token: String,
-        completion: @escaping (Result<PRActivity, GitHubError>) -> Void
-    ) {
-        let group = DispatchGroup()
-        var reviews: [[String: Any]] = []
-        var commentCount = 0
-        var fetchError: GitHubError?
-
-        // Fetch reviews
-        group.enter()
-        var reviewReq = URLRequest(url: URL(string: "https://api.github.com/repos/\(repoName)/pulls/\(number)/reviews")!)
-        reviewReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        reviewReq.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        reviewReq.timeoutInterval = 10
-        URLSession.shared.dataTask(with: reviewReq) { data, _, error in
-            defer { group.leave() }
-            if let error = error { fetchError = .network(error); return }
-            if let data = data,
-               let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                reviews = list
-            }
-        }.resume()
-
-        // Fetch comment count via PR details
-        group.enter()
-        var prReq = URLRequest(url: URL(string: "https://api.github.com/repos/\(repoName)/pulls/\(number)")!)
-        prReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        prReq.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        prReq.timeoutInterval = 10
-        URLSession.shared.dataTask(with: prReq) { data, _, error in
-            defer { group.leave() }
-            if let error = error { fetchError = .network(error); return }
-            if let data = data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                // comments + review_comments combined
-                let c1 = json["comments"] as? Int ?? 0
-                let c2 = json["review_comments"] as? Int ?? 0
-                commentCount = c1 + c2
-            }
-        }.resume()
-
-        group.notify(queue: .global()) {
-            if let err = fetchError { completion(.failure(err)); return }
-            // Deduplicate by reviewer: take the latest review state per user
-            var latestByUser: [String: String] = [:]
-            for review in reviews {
-                if let login = (review["user"] as? [String: Any])?["login"] as? String,
-                   let state = review["state"] as? String {
-                    latestByUser[login] = state
-                }
-            }
-            let approvals = latestByUser.filter { $0.value == "APPROVED" }.map { $0.key }
-            let changes   = latestByUser.filter { $0.value == "CHANGES_REQUESTED" }.map { $0.key }
-            completion(.success(PRActivity(commentCount: commentCount, approvalLogins: approvals, changesLogins: changes)))
-        }
-    }
-
-    private func fetchActivityViaCLI(
-        repoName: String, number: Int,
-        completion: @escaping (Result<PRActivity, GitHubError>) -> Void
-    ) {
-        let group = DispatchGroup()
-        var reviews: [[String: Any]] = []
-        var commentCount = 0
-        var fetchError: GitHubError?
-
-        group.enter()
-        runCLI(["api", "repos/\(repoName)/pulls/\(number)/reviews"]) { result in
-            defer { group.leave() }
-            if case .success(let raw) = result,
-               let data = raw.data(using: .utf8),
-               let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                reviews = list
-            } else if case .failure(let e) = result {
-                fetchError = e
-            }
-        }
-
-        group.enter()
-        runCLI(["api", "repos/\(repoName)/pulls/\(number)"]) { result in
-            defer { group.leave() }
-            if case .success(let raw) = result,
-               let data = raw.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                commentCount = (json["comments"] as? Int ?? 0) + (json["review_comments"] as? Int ?? 0)
-            } else if case .failure(let e) = result {
-                fetchError = e
-            }
-        }
-
-        group.notify(queue: .global()) {
-            if let err = fetchError { completion(.failure(err)); return }
-            var latestByUser: [String: String] = [:]
-            for review in reviews {
-                if let login = (review["user"] as? [String: Any])?["login"] as? String,
-                   let state = review["state"] as? String {
-                    latestByUser[login] = state
-                }
-            }
-            let approvals = latestByUser.filter { $0.value == "APPROVED" }.map { $0.key }
-            let changes   = latestByUser.filter { $0.value == "CHANGES_REQUESTED" }.map { $0.key }
-            completion(.success(PRActivity(commentCount: commentCount, approvalLogins: approvals, changesLogins: changes)))
-        }
     }
 
     func resolveUsername(completion: @escaping (Result<String, GitHubError>) -> Void) {
@@ -287,6 +112,10 @@ final class GitHubService {
         let reviewDecision: String?
         let mergeStateStatus: String?
         let statusCheckRollup: GraphQLStatusRollup?
+        // Activity fields (only present when includeActivity: true)
+        let reviews: GraphQLReviewConnection?
+        let comments: GraphQLCommentConnection?
+        let reviewThreads: GraphQLReviewThreadConnection?
 
         struct GraphQLAuthor: Decodable { let login: String? }
         struct GraphQLRepository: Decodable { let nameWithOwner: String? }
@@ -296,6 +125,27 @@ final class GitHubService {
                 let nodes: [GraphQLStatusNode]?
                 struct GraphQLStatusNode: Decodable { let state: String? }
             }
+        }
+        struct GraphQLReviewConnection: Decodable {
+            let nodes: [GraphQLReview]?
+            struct GraphQLReview: Decodable {
+                let state: String?
+                let author: GraphQLAuthor?
+                let bodyText: String?
+                let submittedAt: String?
+            }
+        }
+        struct GraphQLCommentConnection: Decodable {
+            let totalCount: Int?
+            let nodes: [GraphQLComment]?
+            struct GraphQLComment: Decodable {
+                let author: GraphQLAuthor?
+                let body: String?
+                let updatedAt: String?
+            }
+        }
+        struct GraphQLReviewThreadConnection: Decodable {
+            let totalCount: Int?
         }
 
         func asPullRequest() -> PullRequest? {
@@ -349,12 +199,58 @@ final class GitHubService {
                 mergeableState: mergeStateStatus?.lowercased() ?? "unknown"
             )
         }
+
+        func asActivity() -> PRActivity? {
+            guard reviews != nil || comments != nil else { return nil }
+            // Deduplicate reviews: latest state per reviewer
+            var latestByUser: [String: String] = [:]
+            for review in reviews?.nodes ?? [] {
+                if let login = review.author?.login, let state = review.state {
+                    latestByUser[login] = state
+                }
+            }
+            let approvals = latestByUser.filter { $0.value == "APPROVED" }.map { $0.key }
+            let changes   = latestByUser.filter { $0.value == "CHANGES_REQUESTED" }.map { $0.key }
+            let commentCount = (comments?.totalCount ?? 0) + (reviewThreads?.totalCount ?? 0)
+            return PRActivity(commentCount: commentCount, approvalLogins: approvals, changesLogins: changes)
+        }
+
+        func latestComment() -> PRComment? {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var candidates: [(date: Date, login: String, body: String)] = []
+            for c in comments?.nodes ?? [] {
+                guard let login = c.author?.login, let body = c.body, !body.isEmpty,
+                      let ds = c.updatedAt,
+                      let date = iso.date(from: ds) ?? ISO8601DateFormatter().date(from: ds) else { continue }
+                candidates.append((date, login, body))
+            }
+            for r in reviews?.nodes ?? [] {
+                guard let login = r.author?.login, let body = r.bodyText, !body.isEmpty,
+                      let ds = r.submittedAt,
+                      let date = iso.date(from: ds) ?? ISO8601DateFormatter().date(from: ds) else { continue }
+                candidates.append((date, login, body))
+            }
+            guard let best = candidates.max(by: { $0.date < $1.date }) else { return nil }
+            return PRComment(authorLogin: best.login, body: best.body)
+        }
     }
 
     private func fetchViaGraphQL(
         query: String, token: String, maxCount: Int, sort: Settings.SortOrder,
-        completion: @escaping (Result<([PullRequest], [Int: PRStatus]), GitHubError>) -> Void
+        includeActivity: Bool,
+        completion: @escaping (Result<([PullRequest], [Int: PRStatus], [Int: PRActivity], [Int: PRComment]), GitHubError>) -> Void
     ) {
+        let activityFields = includeActivity ? """
+                reviews(last: 100) {
+                  nodes { state author { login } bodyText submittedAt }
+                }
+                comments(last: 100) { totalCount
+                  nodes { author { login } body updatedAt }
+                }
+                reviewThreads { totalCount }
+        """ : ""
+
         let graphqlQuery = """
         query($searchQuery: String!, $limit: Int!) {
           search(query: $searchQuery, type: ISSUE, first: $limit) {
@@ -376,6 +272,7 @@ final class GitHubService {
                     }
                   }
                 }
+        \(activityFields)
               }
             }
           }
@@ -417,14 +314,22 @@ final class GitHubService {
                 let nodes = resp.data?.search.nodes ?? []
                 var prs: [PullRequest] = []
                 var statusMap: [Int: PRStatus] = [:]
+                var activityMap: [Int: PRActivity] = [:]
+                var latestCommentMap: [Int: PRComment] = [:]
                 for node in nodes {
                     guard let pr = node.asPullRequest() else { continue }
                     prs.append(pr)
                     statusMap[pr.id] = node.asPRStatus()
+                    if let activity = node.asActivity() {
+                        activityMap[pr.id] = activity
+                    }
+                    if let comment = node.latestComment() {
+                        latestCommentMap[pr.id] = comment
+                    }
                 }
 
                 prs = Array(prs.sorted(by: sort).prefix(maxCount))
-                completion(.success((prs, statusMap)))
+                completion(.success((prs, statusMap, activityMap, latestCommentMap)))
             } catch {
                 completion(.failure(.decoding(error)))
             }
