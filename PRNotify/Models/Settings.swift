@@ -22,6 +22,7 @@ struct Settings {
         static let pollIntervalSeconds = "pollIntervalSeconds"
         static let reviewQueueSort     = "reviewQueueSort"
         static let authoredPRsSort     = "authoredPRsSort"
+        static let reviewSLADays       = "reviewSLADays"
     }
 
     var githubToken: String?
@@ -33,6 +34,7 @@ struct Settings {
     var pollIntervalSeconds: Int
     var reviewQueueSort: SortOrder
     var authoredPRsSort: SortOrder
+    var reviewSLADays: Int
 
     static func load() -> Settings {
         let d = UserDefaults.standard
@@ -48,7 +50,8 @@ struct Settings {
             teamSlug:             d.string(forKey: Keys.teamSlug) ?? "",
             pollIntervalSeconds:  d.integer(forKey: Keys.pollIntervalSeconds).nonZeroOr(120),
             reviewQueueSort:      SortOrder(rawValue: d.integer(forKey: Keys.reviewQueueSort)) ?? .createdAsc,
-            authoredPRsSort:      SortOrder(rawValue: d.integer(forKey: Keys.authoredPRsSort)) ?? .createdDesc
+            authoredPRsSort:      SortOrder(rawValue: d.integer(forKey: Keys.authoredPRsSort)) ?? .createdDesc,
+            reviewSLADays:        d.integer(forKey: Keys.reviewSLADays).nonZeroOr(2)
         )
     }
 
@@ -67,6 +70,7 @@ struct Settings {
         d.set(pollIntervalSeconds,      forKey: Keys.pollIntervalSeconds)
         d.set(reviewQueueSort.rawValue, forKey: Keys.reviewQueueSort)
         d.set(authoredPRsSort.rawValue, forKey: Keys.authoredPRsSort)
+        d.set(reviewSLADays,            forKey: Keys.reviewSLADays)
     }
 
     var reviewFilterClause: String {

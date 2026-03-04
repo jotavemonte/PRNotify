@@ -13,12 +13,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var teamLabel:        NSTextField!
     private var reviewSortPopup:  NSPopUpButton!
     private var authoredSortPopup: NSPopUpButton!
+    private var slaField:         NSTextField!
     private var intervalField:    NSTextField!
     private var statusLabel:      NSTextField!
 
     convenience init() {
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 442),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 476),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false)
         w.title = "PRNotify Settings"
@@ -33,7 +34,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private func buildUI() {
         guard let cv = window?.contentView else { return }
-        var y: CGFloat = 398
+        var y: CGFloat = 432
         let lx: CGFloat = 20, lw: CGFloat = 190, fw: CGFloat = 200, fx: CGFloat = 218
 
         func row(label: String, field: NSView) -> NSTextField {
@@ -92,6 +93,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         authoredSortPopup.addItems(withTitles: sortTitles)
         _ = row(label: "My PRs order:", field: authoredSortPopup)
 
+        slaField = NSTextField()
+        _ = row(label: "Review SLA (days):", field: slaField)
+
         intervalField = NSTextField()
         _ = row(label: "Poll interval (seconds):", field: intervalField)
 
@@ -122,6 +126,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         teamField.stringValue         = s.teamSlug
         reviewSortPopup.selectItem(at: s.reviewQueueSort.rawValue)
         authoredSortPopup.selectItem(at: s.authoredPRsSort.rawValue)
+        slaField.stringValue          = "\(s.reviewSLADays)"
         intervalField.stringValue     = "\(s.pollIntervalSeconds)"
         updateTeamFieldState()
     }
@@ -149,6 +154,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         s.teamSlug             = teamField.stringValue.trimmingCharacters(in: .whitespaces)
         s.reviewQueueSort      = Settings.SortOrder(rawValue: reviewSortPopup.indexOfSelectedItem) ?? .createdAsc
         s.authoredPRsSort      = Settings.SortOrder(rawValue: authoredSortPopup.indexOfSelectedItem) ?? .createdDesc
+        s.reviewSLADays        = Int(slaField.stringValue) ?? 2
         s.pollIntervalSeconds  = Int(intervalField.stringValue) ?? 120
         s.save()
         onSave?()

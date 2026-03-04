@@ -89,4 +89,55 @@ struct CLIPullRequest: Decodable {
 
     struct CLIRepository: Decodable { let nameWithOwner: String }
     struct CLIAuthor: Decodable { let login: String }
+    struct CLIStatusCheck: Decodable { let state: String }
+
+    let reviewDecision: String?
+    let statusCheckRollup: [CLIStatusCheck]?
+    let mergeStateStatus: String?
+
+    func asPRStatus() -> PRStatus {
+        let ci: PRStatus.CIStatus
+        if let checks = statusCheckRollup, !checks.isEmpty {
+            let states = checks.map { $0.state.uppercased() }
+            if states.contains(where: { $0 == "FAILURE" || $0 == "ERROR" }) {
+                ci = .failing
+            } else if states.contains(where: { $0 == "PENDING" || $0 == "EXPECTED" }) {
+                ci = .pending
+            } else {
+                ci = .passing
+            }
+        } else {
+            ci = .unknown
+        }
+
+        let review: PRStatus.ReviewDecision
+        switch reviewDecision?.uppercased() {
+        case "APPROVED":           review = .approved
+        case "CHANGES_REQUESTED":  review = .changesRequested
+        case "REVIEW_REQUIRED":    review = .reviewRequired
+        default:                   review = .unknown
+        }
+
+        return PRStatus(
+            ciStatus: ci,
+            reviewDecision: review,
+            mergeableState: mergeStateStatus?.lowercased() ?? "unknown"
+        )
+    }
+}
+
+// MARK: - PR Status
+
+struct PRStatus {
+    enum CIStatus { case passing, failing, pending, unknown }
+    enum ReviewDecision { case approved, changesRequested, reviewRequired, unknown }
+
+    let ciStatus: CIStatus
+    let reviewDecision: ReviewDecision
+    let mergeableState: String  // "clean", "dirty", "blocked", "behind", "unstable", "unknown"
+
+    var isReadyToMerge: Bool { mergeableState == "clean" }
+    var hasIssues: Bool {
+        ciStatus == .failing || reviewDecision == .changesRequested || mergeableState == "dirty"
+    }
 }

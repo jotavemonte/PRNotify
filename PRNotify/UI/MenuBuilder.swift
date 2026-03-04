@@ -33,6 +33,7 @@ enum MenuBuilder {
         authoredPRs: [PullRequest],
         recentPRs: [PullRequest],
         settings: Settings,
+        statusMap: [Int: PRStatus],
         onOpenPR: @escaping (PullRequest) -> Void,
         onSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void
@@ -50,7 +51,7 @@ enum MenuBuilder {
             : "\(prs.count) PR\(prs.count == 1 ? "" : "s") awaiting review"))
         menu.addItem(.separator())
 
-        // PR list — sorted per settings
+        // Review Queue — sorted per settings
         for pr in prs.sorted(by: settings.reviewQueueSort).prefix(settings.maxPRsToShow) {
             handler.register(pr: pr, handler: onOpenPR)
             let item = NSMenuItem(
@@ -59,7 +60,10 @@ enum MenuBuilder {
                 keyEquivalent: "")
             item.target = handler
             item.representedObject = pr
-            item.toolTip = "[\(pr.repositoryName)] #\(pr.number): \(pr.title)\nby @\(pr.author)"
+            item.image = statusIcon(for: pr, status: statusMap[pr.id],
+                                    slaBreachDays: settings.reviewSLADays, showClock: true)
+            item.toolTip = tooltip(for: pr, status: statusMap[pr.id],
+                                   slaBreachDays: settings.reviewSLADays, isReviewQueue: true, showClock: true)
             menu.addItem(item)
         }
 
@@ -76,7 +80,7 @@ enum MenuBuilder {
 
         menu.addItem(.separator())
 
-        // Recent PRs (review queue only) — newest first
+        // Recent PRs — newest first
         let recent = Array(recentPRs.prefix(settings.maxRecentPRsToShow))
         if !recent.isEmpty {
             menu.addItem(disabled("Recently Visited"))
@@ -88,14 +92,17 @@ enum MenuBuilder {
                     keyEquivalent: "")
                 item.target = handler
                 item.representedObject = pr
-                item.toolTip = "[\(pr.repositoryName)] #\(pr.number): \(pr.title)\nby @\(pr.author)"
+                item.image = statusIcon(for: pr, status: statusMap[pr.id],
+                                        slaBreachDays: settings.reviewSLADays, showClock: false)
+                item.toolTip = tooltip(for: pr, status: statusMap[pr.id],
+                                       slaBreachDays: settings.reviewSLADays, isReviewQueue: false, showClock: false)
                 menu.addItem(item)
             }
         }
 
         menu.addItem(.separator())
 
-        // Authored PRs — my open PRs, sorted per settings
+        // Authored PRs — my open PRs
         if authoredPRs.isEmpty {
             menu.addItem(disabled("No open PRs"))
         } else {
@@ -108,7 +115,10 @@ enum MenuBuilder {
                     keyEquivalent: "")
                 item.target = handler
                 item.representedObject = pr
-                item.toolTip = "[\(pr.repositoryName)] #\(pr.number): \(pr.title)"
+                item.image = statusIcon(for: pr, status: statusMap[pr.id],
+                                        slaBreachDays: settings.reviewSLADays, showClock: true)
+                item.toolTip = tooltip(for: pr, status: statusMap[pr.id],
+                                       slaBreachDays: settings.reviewSLADays, isReviewQueue: false, showClock: true)
                 menu.addItem(item)
             }
         }
@@ -132,12 +142,84 @@ enum MenuBuilder {
         return menu
     }
 
+    // MARK: - Status icon (SF Symbols)
+
+    private static func statusIcon(
+        for pr: PullRequest,
+        status: PRStatus?,
+        slaBreachDays: Int,
+        showClock: Bool
+    ) -> NSImage? {
+        let ageInDays = Int(Date().timeIntervalSince(pr.createdAt) / 86400)
+
+        if let status {
+            if status.isReadyToMerge {
+                return symbol("checkmark.circle", color: .systemGreen)
+            } else if status.hasIssues {
+                return symbol("xmark.circle", color: .systemRed)
+            }
+        }
+
+        if showClock && ageInDays >= slaBreachDays {
+            return symbol("clock.circle", color: .systemOrange)
+        }
+
+        return nil
+    }
+
+    private static func symbol(_ name: String, color: NSColor) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+    }
+
+    // MARK: - Tooltip
+
+    private static func tooltip(
+        for pr: PullRequest,
+        status: PRStatus?,
+        slaBreachDays: Int,
+        isReviewQueue: Bool,
+        showClock: Bool
+    ) -> String {
+        var lines: [String] = []
+
+        var header = "[\(pr.repositoryName)] #\(pr.number): \(pr.title)"
+        if isReviewQueue { header += "\nby @\(pr.author)" }
+        lines.append(header)
+
+        if let status {
+            if status.isReadyToMerge {
+                lines.append("✓ Ready to merge: CI passing, no changes requested")
+            } else if status.hasIssues {
+                var reasons: [String] = []
+                if status.ciStatus == .failing { reasons.append("CI checks failing") }
+                if status.reviewDecision == .changesRequested { reasons.append("Changes requested") }
+                if status.mergeableState == "dirty" { reasons.append("Merge conflict") }
+                lines.append("✗ Has issues: \(reasons.joined(separator: ", "))")
+            } else if status.ciStatus == .pending {
+                lines.append("⏳ CI checks pending")
+            }
+        }
+
+        if showClock {
+            let ageInDays = Int(Date().timeIntervalSince(pr.createdAt) / 86400)
+            if ageInDays >= slaBreachDays {
+                lines.append("⏰ Waiting \(ageInDays) day\(ageInDays == 1 ? "" : "s") for review")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     private static func disabled(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
         return item
     }
 }
+
 
 private extension String {
     func capped(_ max: Int) -> String {

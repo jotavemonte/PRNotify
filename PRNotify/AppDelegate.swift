@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentPRs: [PullRequest] = []
     private var authoredPRs: [PullRequest] = []
     private var knownPRIDs: Set<Int> = []        // empty = first run (no notifications)
+    private var prStatusMap: [Int: PRStatus] = [:]
 
     private let github        = GitHubService()
     private let notifications = NotificationService()
@@ -64,8 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         github.fetchReviewRequested(settings: settings) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
-                case .success(let prs):  self?.handleFreshPRs(prs)
-                case .failure(let err):  NSLog("[PRNotify] fetch error: %@", "\(err)")
+                case .success(let (prs, statuses)):  self?.handleFreshPRs(prs, statuses: statuses)
+                case .failure(let err):              NSLog("[PRNotify] fetch error: %@", "\(err)")
                 }
             }
         }
@@ -76,9 +77,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func pollAuthoredPRActivity(username: String) {
         let settings = Settings.load()
         github.fetchAuthoredPRs(username: username, sort: settings.authoredPRsSort) { [weak self] result in
-            guard let self, case .success(let prs) = result else { return }
+            guard let self, case .success(let (prs, statuses)) = result else { return }
             DispatchQueue.main.async {
                 self.authoredPRs = prs
+                self.prStatusMap.merge(statuses) { _, new in new }
                 self.statusItem.menu = self.buildMenu()
             }
 
@@ -126,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func handleFreshPRs(_ fresh: [PullRequest]) {
+    private func handleFreshPRs(_ fresh: [PullRequest], statuses: [Int: PRStatus]) {
         let freshIDs = Set(fresh.map { $0.id })
 
         // Only notify on subsequent polls (skip first-run baseline)
@@ -137,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         knownPRIDs = freshIDs
         currentPRs = fresh
+        prStatusMap.merge(statuses) { _, new in new }
         updateIcon(count: fresh.count)
         statusItem.menu = buildMenu()
     }
@@ -164,13 +167,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() -> NSMenu {
         MenuBuilder.build(
-            prs:        currentPRs,
+            prs:         currentPRs,
             authoredPRs: authoredPRs,
-            recentPRs:  recentStore.load(),
-            settings:   Settings.load(),
-            onOpenPR:   { [weak self] pr in self?.openPR(pr) },
-            onSettings: { [weak self] in self?.openSettings() },
-            onQuit:     { NSApp.terminate(nil) }
+            recentPRs:   recentStore.load(),
+            settings:    Settings.load(),
+            statusMap:   prStatusMap,
+            onOpenPR:    { [weak self] pr in self?.openPR(pr) },
+            onSettings:  { [weak self] in self?.openSettings() },
+            onQuit:      { NSApp.terminate(nil) }
         )
     }
 
