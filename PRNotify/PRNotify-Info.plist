@@ -18,6 +18,8 @@
     <string>1</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>LSUIElement</key>
+    <true/>
     <key>CFBundleSupportedPlatforms</key>
     <array>
         <string>MacOSX</string>
