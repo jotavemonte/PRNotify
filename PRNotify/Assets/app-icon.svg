@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background rounded rect -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="#0969DA"/>
+  <!-- Bottom node -->
+  <circle cx="256" cy="756" r="90" fill="white"/>
+  <!-- Top node -->
+  <circle cx="256" cy="256" r="90" fill="white"/>
+  <!-- Branch node -->
+  <circle cx="768" cy="390" r="90" fill="white"/>
+  <!-- Vertical stem -->
+  <line x1="256" y1="346" x2="256" y2="666" stroke="white" stroke-width="72" stroke-linecap="round"/>
+  <!-- Branch curve -->
+  <path d="M256 346 C256 190 768 190 768 390" fill="none" stroke="white" stroke-width="72" stroke-linecap="round"/>
+</svg>
