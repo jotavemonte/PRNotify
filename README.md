@@ -35,6 +35,14 @@ make run     # build + launch in background
 pkill PRNotify  # stop
 ```
 
+## Testing
+
+```bash
+make test    # compile and run the test suite
+```
+
+Tests cover models (`PullRequest`, `Settings`) and storage (`RecentPRsStore`, `PRActivityStore`). They run as a standalone binary with no Xcode required.
+
 ## Install as Daemon
 
 ```bash

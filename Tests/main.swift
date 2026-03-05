@@ -1,0 +1,4 @@
+runSettingsTests()
+runPullRequestTests()
+runStoreTests()
+summarise()

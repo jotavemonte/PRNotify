@@ -3,16 +3,21 @@ import Foundation
 final class RecentPRsStore {
     private let key = "recentPRs"
     private let hardCap = 50
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
 
     func load() -> [PullRequest] {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = defaults.data(forKey: key),
               let entries = try? JSONDecoder().decode([Entry].self, from: data)
         else { return [] }
         return entries.sorted { $0.visitedAt > $1.visitedAt }.map { $0.pr }
     }
 
     func clear() {
-        UserDefaults.standard.removeObject(forKey: key)
+        defaults.removeObject(forKey: key)
     }
 
     func record(_ pr: PullRequest) {
@@ -23,13 +28,13 @@ final class RecentPRsStore {
     }
 
     private func loadEntries() -> [Entry] {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        guard let data = defaults.data(forKey: key) else { return [] }
         return (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
     }
 
     private func save(_ entries: [Entry]) {
         if let data = try? JSONEncoder().encode(entries) {
-            UserDefaults.standard.set(data, forKey: key)
+            defaults.set(data, forKey: key)
         }
     }
 
